@@ -1,0 +1,142 @@
+---
+title: "duckplyr"
+---
+
+```{r}
+#| eval: false
+#| include: true
+
+
+# pak::pak("tidyverse/duckplyr")
+install.packages('duckplyr', repos = c('https://tidyverse.r-universe.dev', 'https://cloud.r-project.org'))
+```
+
+
+```{r}
+library(conflicted)
+library(duckplyr)
+library(nycflights23)
+```
+
+```{r}
+# conflict_prefer("filter", "duckplyr")
+conflict_prefer("filter", "dplyr", quiet = TRUE)
+```
+
+```{r}
+flights_df() #|> 
+  # count() |> 
+  # mutate(n = scales::comma(n))
+```
+
+```{r}
+
+out_df <- flights_df() |>
+  filter(!is.na(arr_delay), !is.na(dep_delay)) |> 
+  mutate(inflight_delay = arr_delay - dep_delay) |>
+  summarize(
+    .by = c(year, month),
+    mean_inflight_delay = mean(inflight_delay),
+    median_inflight_delay = median(inflight_delay),
+  ) |>
+  filter(month <= 6)
+
+out_df
+```
+
+```{r}
+class(out_df)
+```
+
+```{r}
+out_df$month
+```
+
+```{r}
+flights_df() |>
+  summarize(
+    .by = origin,
+    dest = paste(sort(unique(dest)), collapse = " ")
+  )
+```
+
+```{r}
+year <- 2022:2024
+base_url <- "https://blobs.duckdb.org/flight-data-partitioned/"
+files <- paste0("Year=", year, "/data_0.parquet")
+urls <- paste0(base_url, files)
+tibble(urls)
+```
+
+```{r}
+db_exec("INSTALL httpfs")
+db_exec("LOAD httpfs")
+```
+
+
+```{r}
+flights <- read_parquet_duckdb(urls)
+```
+
+```{r}
+class(flights)
+```
+
+
+```{r}
+flights |> 
+  head()
+```
+
+```{r}
+class(flights)
+```
+This doesn't work.  Gives and error because the data are too large.
+
+```{r}
+#| eval: false
+#| include: true
+
+
+nrow(flights)
+```
+
+```{r}
+# flights |> 
+#   head(20)
+
+flights |> 
+  count() |> 
+  mutate(pretty_n = scales::comma(n))
+```
+
+```{r}
+flights |> 
+  count(Year) |> 
+  mutate(n_pretty = scales::comma(n))
+  # summarise(sum(n))
+```
+
+```{r}
+out <-
+  flights |>
+  mutate(InFlightDelay = ArrDelay - DepDelay) |>
+  summarize(
+    .by = c(Year, Month),
+    MeanInFlightDelay = mean(InFlightDelay, na.rm = TRUE),
+    MedianInFlightDelay = median(InFlightDelay, na.rm = TRUE),
+  ) |>
+  filter(Year < 2024)
+
+out |>
+  explain()
+
+out |>
+  print() |>
+  system.time()
+```
+
+```{r}
+stats_show()
+```
+
