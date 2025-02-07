@@ -6,7 +6,6 @@ title: "duckplyr"
 #| eval: false
 #| include: true
 
-
 # pak::pak("tidyverse/duckplyr")
 install.packages('duckplyr', repos = c('https://tidyverse.r-universe.dev', 'https://cloud.r-project.org'))
 ```
@@ -15,13 +14,14 @@ install.packages('duckplyr', repos = c('https://tidyverse.r-universe.dev', 'http
 ```{r}
 library(conflicted)
 library(duckplyr)
-library(nycflights23)
+# library(nycflights23)
 ```
 
 ```{r}
 # conflict_prefer("filter", "duckplyr")
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```
+
 
 ```{r}
 flights_df() #|> 
@@ -91,6 +91,41 @@ flights |>
 ```{r}
 class(flights)
 ```
+
+```
+{r}
+flights |> 
+  explain()
+
+flights |> 
+  collect() |> 
+  duckdb::show()
+
+duckdb::dbListTables()
+
+flights2 <- duckplyr::flights_df()
+
+flights_duckdb <-
+  flights2 |>
+  duckplyr::as_duckdb_tibble()
+
+system.time(
+  mean_arr_delay_ewr <-
+    flights_duckdb |>
+    filter(origin == "EWR", !is.na(arr_delay)) |>
+    summarize(
+      .by = month,
+      mean_arr_delay = mean(arr_delay),
+      min_arr_delay = min(arr_delay),
+      max_arr_delay = max(arr_delay),
+      median_arr_delay = median(arr_delay),
+    )
+)
+```
+
+
+## nrow
+
 This doesn't work.  Gives and error because the data are too large.
 
 ```{r}
@@ -109,6 +144,7 @@ flights |>
   count() |> 
   mutate(pretty_n = scales::comma(n))
 ```
+
 
 ```{r}
 flights |> 
@@ -138,5 +174,177 @@ out |>
 
 ```{r}
 stats_show()
+```
+
+## Open  Government
+
+https://duckdb.org/2024/10/09/analyzing-open-government-data-with-duckplyr.html
+
+```{r}
+# download.file("https://blobs.duckdb.org/nzcensus.zip", "nzcensus.zip")
+# unzip("nzcensus.zip")
+
+
+fs::dir_create("data")
+download.file("https://blobs.duckdb.org/nzcensus.zip", "data/nzcensus.zip")
+unzip("data/nzcensus.zip", exdir = "data")
+```
+
+
+```{r}
+fs::file_info(fs::dir_ls("data", glob = "*.csv"))
+
+# fs::dir_ls("data", glob = "*.csv") |> 
+#   fs::file_info() |> 
+#   dplyr::pull(path) |> 
+#   paste(",") |> 
+#   cat()
+```
+
+```
+{r}
+cat(paste(readLines("Data8277.csv", n=10), collapse="\n"))
+```
+
+```
+{r}
+duckdb:::sql("SELECT version()")
+```
+
+```{r}
+duckdb:::sql("FROM Data8277.csv LIMIT 10")
+```
+
+```{r}
+duckdb:::sql("DESCRIBE FROM Data8277.csv")
+```
+
+```{r}
+duckdb:::sql("SUMMARIZE FROM Data8277.csv")
+```
+
+```
+big_df <- duckdb:::sql("FROM 'Data8277.csv' data
+JOIN 'DimenLookupAge8277.csv' age ON data.Age = age.Code
+JOIN 'DimenLookupArea8277.csv' area ON data.Area = area.Code
+JOIN 'DimenLookupEthnic8277.csv' ethnic ON data.Ethnic = ethnic.Code
+JOIN 'DimenLookupSex8277.csv' sex ON data.Sex = sex.Code
+JOIN 'DimenLookupYear8277.csv' year ON data.Year = year.Code")
+```
+
+
+```{r}
+data <- duckplyr::read_csv_duckdb("data/Data8277.csv")
+data |> head()
+
+age <- duckplyr::read_csv_duckdb("data/DimenLookupAge8277.csv")
+area <- duckplyr::read_csv_duckdb("data/DimenLookupArea8277.csv")
+ethnic <- duckplyr::read_csv_duckdb("data/DimenLookupEthnic8277.csv")
+sex <- duckplyr::read_csv_duckdb("data/DimenLookupSex8277.csv"   )
+year <- duckplyr::read_csv_duckdb("data/DimenLookupYear8277.csv"  )
+```
+
+
+```{r}
+data  <- data |> 
+  left_join(age, by = join_by("Age" == "Code")) |> 
+  left_join(area, by = join_by("Area" == "Code")) |> 
+  left_join(ethnic, by = join_by("Ethnic" == "Code")) |> 
+  left_join(sex, by = join_by("Sex" == "Code")) |> 
+  left_join(year, by = join_by("Year" == "Code"))
+
+data |> head()
+age |> head()
+area  |> head()
+ethnic  |> head()
+sex  |> head()
+year  |> head()
+```
+
+```
+{r}
+# library(dplyr)
+
+data   <- duckplyr_df_from_csv("Data8277.csv")
+age    <- duckplyr_df_from_csv("DimenLookupAge8277.csv")
+area   <- duckplyr_df_from_csv("DimenLookupArea8277.csv")
+ethnic <- duckplyr_df_from_csv("DimenLookupEthnic8277.csv")
+sex    <- duckplyr_df_from_csv("DimenLookupSex8277.csv")
+year   <- duckplyr_df_from_csv("DimenLookupYear8277.csv")
+
+data
+age
+area
+ethnic
+sex
+year
+```
+
+
+```{r}
+expanded_cleaned_data <- data |>
+  filter(grepl("^\\d+$", count)) |>
+  # filter(stringr::str_detect("^\\d+$", count))
+  mutate(count_ = as.integer(count)) |>
+  filter(count_ > 0) |>
+  inner_join(
+    age |>
+      filter(grepl("^\\d+ years$", Description)) |>
+      mutate(age_ = as.integer(Code)),
+    join_by(Age == Code)
+  ) |> 
+  inner_join(area |>
+    mutate(area_ = Description) |>
+    filter(!grepl("^Total", area_)), join_by(Area == Code)) |>
+  inner_join(ethnic |>
+    mutate(ethnic_ = Description) |>
+    filter(!grepl("^Total", ethnic_)), join_by(Ethnic == Code)) |>
+  inner_join(sex |>
+    mutate(sex_ = Description) |>
+    filter(!grepl("^Total", sex_)), join_by(Sex == Code)) |>
+  inner_join(year |> mutate(year_ = Description), join_by(Year == Code))
+
+expanded_cleaned_data |> 
+  head()
+
+
+
+twenty_till_fourty_non_european_in_auckland_area <-
+  expanded_cleaned_data |>
+  filter(
+    age_ >= 20, age_ <= 40,
+    grepl("^Auckland", area_),
+    year_ == "2018",
+    ethnic_ != "European"
+  ) |>
+  summarise(group_count = sum(count_), .by = sex_) |> arrange(sex_)
+
+twenty_till_fourty_non_european_in_auckland_area |> 
+  mutate(count_pretty = scales::comma(group_count))
+```
+
+
+```{r}
+# create final aggregation, still completely lazily
+twenty_till_fourty_non_european_in_auckland_area <-
+  expanded_cleaned_data |>
+  filter(
+    age_ >= 20, age_ <= 40,
+    grepl("^Auckland", area_),
+    year_ == "2018",
+    ethnic_ != "European"
+  ) |>
+  summarise(group_count = sum(count_), .by = sex_) |> arrange(sex_)
+
+print(twenty_till_fourty_non_european_in_auckland_area)
+```
+
+
+## taxi
+
+https://duckdb.org/2024/10/16/driving-csv-performance-benchmarking-duckdb-with-the-nyc-taxi-dataset.html
+
+```{r}
+
 ```
 
