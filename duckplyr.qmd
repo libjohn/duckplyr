@@ -1,5 +1,6 @@
 ---
 title: "duckplyr"
+editor: source
 ---
 
 ```{r}
@@ -9,7 +10,6 @@ title: "duckplyr"
 # pak::pak("tidyverse/duckplyr")
 install.packages('duckplyr', repos = c('https://tidyverse.r-universe.dev', 'https://cloud.r-project.org'))
 ```
-
 
 ```{r}
 library(conflicted)
@@ -22,10 +22,9 @@ library(duckplyr)
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```
 
-
 ```{r}
 flights_df() #|> 
-  # count() |> 
+  # count() |>
   # mutate(n = scales::comma(n))
 ```
 
@@ -73,7 +72,6 @@ db_exec("INSTALL httpfs")
 db_exec("LOAD httpfs")
 ```
 
-
 ```{r}
 flights <- read_parquet_duckdb(urls)
 ```
@@ -81,7 +79,6 @@ flights <- read_parquet_duckdb(urls)
 ```{r}
 class(flights)
 ```
-
 
 ```{r}
 flights |> 
@@ -92,26 +89,28 @@ flights |>
 class(flights)
 ```
 
-```
-{r}
+```{r}
 flights |> 
   explain()
 
-flights |> 
-  collect() |> 
-  duckdb::show()
+# this takes up too much of my meory
+# flights |> 
+#   collect() |> 
+#   duckdb::show()
 
-duckdb::dbListTables()
+#duckdb::dbListTables()
 
 flights2 <- duckplyr::flights_df()
 
 flights_duckdb <-
-  flights2 |>
+  flights |>
   duckplyr::as_duckdb_tibble()
 
 system.time(
   mean_arr_delay_ewr <-
-    flights_duckdb |>
+    # flights_duckdb |>
+    flights_df() |>
+    duckplyr::as_duckdb_tibble(prudence = "lavish") |>
     filter(origin == "EWR", !is.na(arr_delay)) |>
     summarize(
       .by = month,
@@ -121,12 +120,55 @@ system.time(
       median_arr_delay = median(arr_delay),
     )
 )
-```
+mean_arr_delay_ewr
 
+mean_arr_delay_ewr <-
+    # flights_duckdb |>
+  flights |>
+  duckplyr::as_duckdb_tibble() |> 
+  # duckplyr::as_duckdb_tibble(prudence = "lavish") |>
+  filter(origin == "EWR", !is.na(arr_delay)) |>
+  summarize(
+    .by = month,
+    mean_arr_delay = mean(arr_delay),
+    min_arr_delay = min(arr_delay),
+    max_arr_delay = max(arr_delay),
+    median_arr_delay = median(arr_delay),
+  )
+
+mean_arr_delay_ewr
+
+mean_arr_delay_ewr <-
+    # flights_duckdb |>
+  flights_duckdb |>
+  # duckplyr::as_duckdb_tibble() |> 
+  # duckplyr::as_duckdb_tibble(prudence = "lavish") |>
+  filter(Origin == "EWR", !is.na(ArrDelay)) |>
+  summarize(
+    .by = Month,
+    mean_arr_delay = mean(ArrDelay),
+    min_arr_delay = min(ArrDelay),
+    max_arr_delay = max(ArrDelay),
+    median_arr_delay = median(ArrDelay),
+  )
+
+mean_arr_delay_ewr
+
+flights |> explain()
+flights_duckdb |> explain()
+flights2 |> explain()
+# flights_df |> explain()
+
+
+class(flights)
+class(flights_duckdb)
+class(flights_df) 
+class(flights2)
+```
 
 ## nrow
 
-This doesn't work.  Gives and error because the data are too large.
+This doesn't work. Gives and error because the data are too large.
 
 ```{r}
 #| eval: false
@@ -145,12 +187,17 @@ flights |>
   mutate(pretty_n = scales::comma(n))
 ```
 
-
 ```{r}
-flights |> 
+flights_duckdb |>
+  count() |> 
+  mutate(n_pretty = scales::comma(n))
+
+flights_duckdb |> 
   count(Year) |> 
   mutate(n_pretty = scales::comma(n))
   # summarise(sum(n))
+
+class(flights_duckdb)
 ```
 
 ```{r}
@@ -176,7 +223,7 @@ out |>
 stats_show()
 ```
 
-## Open  Government
+## Open Government
 
 https://duckdb.org/2024/10/09/analyzing-open-government-data-with-duckplyr.html
 
@@ -190,7 +237,6 @@ download.file("https://blobs.duckdb.org/nzcensus.zip", "data/nzcensus.zip")
 unzip("data/nzcensus.zip", exdir = "data")
 ```
 
-
 ```{r}
 fs::file_info(fs::dir_ls("data", glob = "*.csv"))
 
@@ -201,29 +247,29 @@ fs::file_info(fs::dir_ls("data", glob = "*.csv"))
 #   cat()
 ```
 
-```
-{r}
-cat(paste(readLines("Data8277.csv", n=10), collapse="\n"))
+```{r}
+cat(paste(readLines("data/Data8277.csv", n=10), collapse="\n"))
 ```
 
-```
-{r}
+```{r}
 duckdb:::sql("SELECT version()")
 ```
 
 ```{r}
-duckdb:::sql("FROM Data8277.csv LIMIT 10")
+duckdb:::sql("FROM 'data/Data8277.csv' LIMIT 10")
+duckdb:::sql("FROM 'data/DimenLookupAge8277.csv' LIMIT 10")
 ```
 
 ```{r}
-duckdb:::sql("DESCRIBE FROM Data8277.csv")
+duckdb:::sql("DESCRIBE FROM 'data/Data8277.csv'")
+duckdb:::sql("DESCRIBE FROM 'data/DimenLookupAge8277.csv'")
 ```
 
 ```{r}
-duckdb:::sql("SUMMARIZE FROM Data8277.csv")
+duckdb:::sql("SUMMARIZE FROM 'data/Data8277.csv'")
 ```
 
-```
+```         
 big_df <- duckdb:::sql("FROM 'Data8277.csv' data
 JOIN 'DimenLookupAge8277.csv' age ON data.Age = age.Code
 JOIN 'DimenLookupArea8277.csv' area ON data.Area = area.Code
@@ -232,16 +278,29 @@ JOIN 'DimenLookupSex8277.csv' sex ON data.Sex = sex.Code
 JOIN 'DimenLookupYear8277.csv' year ON data.Year = year.Code")
 ```
 
-
 ```{r}
 data <- duckplyr::read_csv_duckdb("data/Data8277.csv")
 data |> head()
+
 
 age <- duckplyr::read_csv_duckdb("data/DimenLookupAge8277.csv")
 area <- duckplyr::read_csv_duckdb("data/DimenLookupArea8277.csv")
 ethnic <- duckplyr::read_csv_duckdb("data/DimenLookupEthnic8277.csv")
 sex <- duckplyr::read_csv_duckdb("data/DimenLookupSex8277.csv"   )
 year <- duckplyr::read_csv_duckdb("data/DimenLookupYear8277.csv"  )
+# rm(data, age, area, ethnic, sex, year)
+```
+
+```{r}
+class(data)
+data |> explain()
+
+data |> 
+  count() |> 
+  mutate(count_pretty = scales::comma(n))
+
+data |> 
+  head()
 ```
 
 
@@ -261,28 +320,14 @@ sex  |> head()
 year  |> head()
 ```
 
-```
-{r}
-# library(dplyr)
-
-data   <- duckplyr_df_from_csv("Data8277.csv")
-age    <- duckplyr_df_from_csv("DimenLookupAge8277.csv")
-area   <- duckplyr_df_from_csv("DimenLookupArea8277.csv")
-ethnic <- duckplyr_df_from_csv("DimenLookupEthnic8277.csv")
-sex    <- duckplyr_df_from_csv("DimenLookupSex8277.csv")
-year   <- duckplyr_df_from_csv("DimenLookupYear8277.csv")
-
-data
-age
-area
-ethnic
-sex
-year
+```{r}
+data |> 
+  explain()
 ```
 
 
 ```{r}
-expanded_cleaned_data <- data |>
+expanded_cleaned_data <- data |> 
   filter(grepl("^\\d+$", count)) |>
   # filter(stringr::str_detect("^\\d+$", count))
   mutate(count_ = as.integer(count)) |>
@@ -305,12 +350,16 @@ expanded_cleaned_data <- data |>
   inner_join(year |> mutate(year_ = Description), join_by(Year == Code))
 
 expanded_cleaned_data |> 
+  # collect()
   head()
 
+# expanded_cleaned_data |> explain()
 
 
+# lavish v stingy
 twenty_till_fourty_non_european_in_auckland_area <-
   expanded_cleaned_data |>
+  duckplyr::as_duckdb_tibble(prudence = "lavish") |>
   filter(
     age_ >= 20, age_ <= 40,
     grepl("^Auckland", area_),
@@ -323,11 +372,11 @@ twenty_till_fourty_non_european_in_auckland_area |>
   mutate(count_pretty = scales::comma(group_count))
 ```
 
-
 ```{r}
 # create final aggregation, still completely lazily
 twenty_till_fourty_non_european_in_auckland_area <-
   expanded_cleaned_data |>
+  duckplyr::as_duckdb_tibble(prudence = "lavish") |>
   filter(
     age_ >= 20, age_ <= 40,
     grepl("^Auckland", area_),
@@ -340,11 +389,89 @@ print(twenty_till_fourty_non_european_in_auckland_area)
 ```
 
 
+
+```{r}
+#| eval: false
+
+flights_df() |> #head() |> glimpse()
+  # as_duckplyr_df() |> 
+  # as_duckdb_tibble() |> #head() |> glimpse()
+  group_by(year) |> 
+  summarise(mean(dep_time, na.rm = TRUE ))
+
+  
+flights_df() |> 
+  duckplyr::as_duckdb_tibble(prudence = "lavish") |> 
+  group_by(year) |> 
+  summarise(mean(dep_time, na.rm = TRUE ))
+  
+```
+
 ## taxi
 
 https://duckdb.org/2024/10/16/driving-csv-performance-benchmarking-duckdb-with-the-nyc-taxi-dataset.html
 
-```{r}
+> In 2022, the data provider has decided to distribute the dataset as a series of Parquet files instead of CSV files. Performance-wise, this is a wise choice, as Parquet files are much smaller than CSV files, and their native columnar format allows for fast execution directly on them. 
 
+```{r}
+#| label: pull-from-url-NOT
+#| eval: false
+year_tx <- 2020:2024
+month_tx <- rep(stringr::str_pad(1:3, width = 2, pad = "0"), 4)
+base_url_tx <- "https://d37ci6vzurychx.cloudfront.net/trip-data/" #yellow_tripdata_2024-02.parquet"
+record_type <- "yellow_tripdata_"
+files_tx <- paste0(record_type, year_tx, "-", month_tx, ".parquet")
+files_tx
+
+taxis_urls <- tibble(filename = files_tx, base_url = base_url_tx) |> 
+  arrange(filename) |> 
+  transmute(url = paste0(base_url, filename))
+
+
+taxis_urls
+```
+
+
+```{r}
+#| label: get-filenames
+
+my_files <- fs::dir_ls("data/taxis", glob = "*.parquet")
+my_files
+```
+
+```{r}
+#| label: ingest-parquet-file
+
+# taxis_duckdb <- read_parquet_duckdb(taxis_urls$url)
+taxis_duckdb <- read_parquet_duckdb(my_files)
+```
+
+```{r}
+taxis_duckdb |> 
+  explain()
+```
+
+```{r}
+taxis_duckdb |> 
+  count() 
+```
+
+```{r}
+taxis_duckdb |> 
+  head() |> 
+  glimpse()
+```
+
+```{r}
+taxis_duckdb |> 
+  mutate(year = lubridate::year(tpep_dropoff_datetime)) |>
+  summarise(avg_fare = mean(fare_amount, na.rm = TRUE), 
+            avg_distance = mean(trip_distance, na.rm = TRUE),
+            .by = year) |>
+  mutate(avg_fare_pretty = scales::dollar(avg_fare),
+         .after = avg_fare) |> 
+  mutate(avgt_cost_per_mile = avg_fare / avg_distance) |> 
+  arrange(-avg_fare)
+  
 ```
 
