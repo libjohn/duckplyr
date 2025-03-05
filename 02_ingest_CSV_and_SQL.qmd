@@ -4,6 +4,10 @@ author: "John Little"
 format: html
 ---
 
+This time lets import a large CSV file. This example comes from a duckdb.org blog post about analyzing New Zeland census data. The data are a zipped collection of CSV files that we will download, and ingest.
+
+An initial example will demonstrate that {duckdb) can invoke actual SQL commands. Even though we'll prefer to use {dplyr} functions most of the time, it's good to know that highly precise SQL commands can be invoked when needed.
+
 ```{r}
 library(conflicted)
 library(duckplyr)
@@ -13,29 +17,33 @@ library(nycflights13)
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```
 
+The data and example code are found in [a DuckDB blog post](https://duckdb.org/2024/10/09/analyzing-open-government-data-with-duckplyr.html).
 
-
-https://duckdb.org/2024/10/09/analyzing-open-government-data-with-duckplyr.html
+NOTE: The zipped data are \~ 100 MB. If you're on a slow data connection, you may find this download is slow.
 
 ```{r}
-# download.file("https://blobs.duckdb.org/nzcensus.zip", "nzcensus.zip")
-# unzip("nzcensus.zip")
-
-
 fs::dir_create("data")
 download.file("https://blobs.duckdb.org/nzcensus.zip", "data/nzcensus.zip")
 unzip("data/nzcensus.zip", exdir = "data")
 ```
 
+## File system
+
+Let's have a quick look at the unzipped files.
+
 ```{r}
 fs::file_info(fs::dir_ls("data", glob = "*.csv"))
 ```
+
+Take a quick look at the first 10 rows of CSV data.
 
 ```{r}
 cat(paste(readLines("data/Data8277.csv", n=10), collapse="\n"))
 ```
 
 ## Select SQL examples
+
+If you know SQL, you can still use without leveraging {dbplyr} as the SQL broker between {dplyr} verbs and the database engine. Let's have a quick look at some raw SQL, and then move back to {duckplyr}.
 
 ```{r}
 duckdb:::sql("SELECT version()")
@@ -57,6 +65,8 @@ duckdb:::sql("SUMMARIZE FROM 'data/Data8277.csv'")
 
 ## Duckplyr `read_csv_duckdb()`
 
+Below we use the `read_csv_duckdb()`{=} function of {duckplyr} to import CSV files as DuckDB objects.
+
 ```{r}
 data <- duckplyr::read_csv_duckdb("data/Data8277.csv")
 data |> head()
@@ -75,18 +85,18 @@ class(data)
 data |> explain()
 ```
 
-
 ```{r}
 data |> 
   count() |> 
   mutate(count_pretty = scales::comma(n))
 ```
 
-
 ```{r}
 data |> 
   head()
 ```
+
+And here are the other objects imported from CSV files.
 
 ```{r}
 age |> head()
@@ -96,8 +106,9 @@ sex  |> head()
 year  |> head()
 ```
 
-
 ### dplyr verbs for join
+
+Leveraging {duckplyr} functions by using the verbs we know from {dplyr}.
 
 ```{r}
 data  <- data |> 
@@ -108,11 +119,14 @@ data  <- data |>
   left_join(year, by = join_by("Year" == "Code"))
 ```
 
+The output from this next code chunk is a lot of technical explanation.
+
 ```{r}
 data |> 
   explain()
 ```
 
+Instead of `left_join()`{=} we can also use `inner_join()`{=icml}, along with many other {dplyr} data wrangling functions.
 
 ```{r}
 expanded_cleaned_data <- data |> 
@@ -139,14 +153,17 @@ expanded_cleaned_data <- data |>
 
 ### Collect()
 
+Depending on your RAM, the `collect()`{=} function might now work. If not, `head()`{=} will be a quick-and-dirty way to get some output. Uncomment the line below; see what happens.
+
 ```{r}
 expanded_cleaned_data |> 
   # collect()
   head()
 ```
 
+### Lavish v stingy
 
-### Lavis v stingy
+Read more about the [levels of prudence](https://duckplyr.tidyverse.org/articles/prudence.html#concept). Which line, below, materializes the data into a *lavish* computation?
 
 ```{r}
 # lavish v stingy
