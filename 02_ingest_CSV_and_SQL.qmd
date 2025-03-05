@@ -1,0 +1,166 @@
+---
+title: "Ingest CSV and SQL"
+author: "John Little"
+format: html
+---
+
+```{r}
+library(conflicted)
+library(duckplyr)
+library(fs)
+library(nycflights13)
+
+conflict_prefer("filter", "dplyr", quiet = TRUE)
+```
+
+
+
+https://duckdb.org/2024/10/09/analyzing-open-government-data-with-duckplyr.html
+
+```{r}
+# download.file("https://blobs.duckdb.org/nzcensus.zip", "nzcensus.zip")
+# unzip("nzcensus.zip")
+
+
+fs::dir_create("data")
+download.file("https://blobs.duckdb.org/nzcensus.zip", "data/nzcensus.zip")
+unzip("data/nzcensus.zip", exdir = "data")
+```
+
+```{r}
+fs::file_info(fs::dir_ls("data", glob = "*.csv"))
+```
+
+```{r}
+cat(paste(readLines("data/Data8277.csv", n=10), collapse="\n"))
+```
+
+## Select SQL examples
+
+```{r}
+duckdb:::sql("SELECT version()")
+```
+
+```{r}
+duckdb:::sql("FROM 'data/Data8277.csv' LIMIT 10")
+duckdb:::sql("FROM 'data/DimenLookupAge8277.csv' LIMIT 10")
+```
+
+```{r}
+duckdb:::sql("DESCRIBE FROM 'data/Data8277.csv'")
+duckdb:::sql("DESCRIBE FROM 'data/DimenLookupAge8277.csv'")
+```
+
+```{r}
+duckdb:::sql("SUMMARIZE FROM 'data/Data8277.csv'")
+```
+
+## Duckplyr `read_csv_duckdb()`
+
+```{r}
+data <- duckplyr::read_csv_duckdb("data/Data8277.csv")
+data |> head()
+
+
+age <- duckplyr::read_csv_duckdb("data/DimenLookupAge8277.csv")
+area <- duckplyr::read_csv_duckdb("data/DimenLookupArea8277.csv")
+ethnic <- duckplyr::read_csv_duckdb("data/DimenLookupEthnic8277.csv")
+sex <- duckplyr::read_csv_duckdb("data/DimenLookupSex8277.csv"   )
+year <- duckplyr::read_csv_duckdb("data/DimenLookupYear8277.csv"  )
+# rm(data, age, area, ethnic, sex, year)
+```
+
+```{r}
+class(data)
+data |> explain()
+```
+
+
+```{r}
+data |> 
+  count() |> 
+  mutate(count_pretty = scales::comma(n))
+```
+
+
+```{r}
+data |> 
+  head()
+```
+
+```{r}
+age |> head()
+area  |> head()
+ethnic  |> head()
+sex  |> head()
+year  |> head()
+```
+
+
+### dplyr verbs for join
+
+```{r}
+data  <- data |> 
+  left_join(age, by = join_by("Age" == "Code")) |> 
+  left_join(area, by = join_by("Area" == "Code")) |> 
+  left_join(ethnic, by = join_by("Ethnic" == "Code")) |> 
+  left_join(sex, by = join_by("Sex" == "Code")) |> 
+  left_join(year, by = join_by("Year" == "Code"))
+```
+
+```{r}
+data |> 
+  explain()
+```
+
+
+```{r}
+expanded_cleaned_data <- data |> 
+  filter(grepl("^\\d+$", count)) |>
+  mutate(count_ = as.integer(count)) |>
+  filter(count_ > 0) |>
+  inner_join(
+    age |>
+      filter(grepl("^\\d+ years$", Description)) |>
+      mutate(age_ = as.integer(Code)),
+    join_by(Age == Code)
+  ) |> 
+  inner_join(area |>
+    mutate(area_ = Description) |>
+    filter(!grepl("^Total", area_)), join_by(Area == Code)) |>
+  inner_join(ethnic |>
+    mutate(ethnic_ = Description) |>
+    filter(!grepl("^Total", ethnic_)), join_by(Ethnic == Code)) |>
+  inner_join(sex |>
+    mutate(sex_ = Description) |>
+    filter(!grepl("^Total", sex_)), join_by(Sex == Code)) |>
+  inner_join(year |> mutate(year_ = Description), join_by(Year == Code))
+```
+
+### Collect()
+
+```{r}
+expanded_cleaned_data |> 
+  # collect()
+  head()
+```
+
+
+### Lavis v stingy
+
+```{r}
+# lavish v stingy
+twenty_till_fourty_non_european_in_auckland_area <-
+  expanded_cleaned_data |>
+  duckplyr::as_duckdb_tibble(prudence = "lavish") |>
+  filter(
+    age_ >= 20, age_ <= 40,
+    grepl("^Auckland", area_),
+    year_ == "2018",
+    ethnic_ != "European"
+  ) |>
+  summarise(group_count = sum(count_), .by = sex_) |> arrange(sex_)
+
+twenty_till_fourty_non_european_in_auckland_area |> 
+  mutate(count_pretty = scales::comma(group_count))
+```

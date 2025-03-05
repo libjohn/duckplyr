@@ -1,0 +1,141 @@
+---
+title: "duckplyr"
+editor: source
+---
+
+```{r}
+library(conflicted)
+library(duckplyr)
+library(fs)
+library(nycflights13)
+
+conflict_prefer("filter", "dplyr", quiet = TRUE)
+```
+
+
+```{r}
+flights_df() #|> 
+  # count() |>
+  # mutate(n = scales::comma(n))
+```
+
+```{r}
+
+out_df <- flights_df() |>
+  filter(!is.na(arr_delay), !is.na(dep_delay)) |> 
+  mutate(inflight_delay = arr_delay - dep_delay) |>
+  summarize(
+    .by = c(year, month),
+    mean_inflight_delay = mean(inflight_delay),
+    median_inflight_delay = median(inflight_delay),
+  ) |>
+  filter(month <= 6)
+
+out_df
+```
+
+```{r}
+class(out_df)
+```
+
+```{r}
+flights_df() |>
+  summarize(
+    .by = origin,
+    dest = paste(sort(unique(dest)), collapse = " ")
+  )
+```
+
+```{r}
+year <- 2022:2024
+base_url <- "https://blobs.duckdb.org/flight-data-partitioned/"
+files <- paste0("Year=", year, "/data_0.parquet")
+urls <- paste0(base_url, files)
+tibble(urls)
+```
+
+```{r}
+db_exec("INSTALL httpfs")
+db_exec("LOAD httpfs")
+```
+
+```{r}
+flights <- read_parquet_duckdb(urls)
+```
+
+```{r}
+class(flights)
+```
+
+```{r}
+flights |> 
+  head()
+```
+
+
+
+```{r}
+flights |> 
+  explain()
+```
+
+
+```{r}
+mean_arr_delay_ewr <- flights_df() |>
+  duckplyr::as_duckdb_tibble(prudence = "lavish") |>
+  filter(origin == "EWR", !is.na(arr_delay)) |>
+  summarize(
+    .by = month,
+    mean_arr_delay = mean(arr_delay),
+    min_arr_delay = min(arr_delay),
+    max_arr_delay = max(arr_delay),
+    median_arr_delay = median(arr_delay),
+  )
+
+mean_arr_delay_ewr
+```
+
+
+```{r}
+flights |> explain()
+mean_arr_delay_ewr |> explain()
+
+class(flights)
+class(mean_arr_delay_ewr)
+```
+
+
+```{r}
+flights |> 
+  count() |> 
+  mutate(pretty_n = scales::comma(n))
+```
+
+
+```{r}
+out <-
+  flights |>
+  mutate(InFlightDelay = ArrDelay - DepDelay) |>
+  summarize(
+    .by = c(Year, Month),
+    MeanInFlightDelay = mean(InFlightDelay, na.rm = TRUE),
+    MedianInFlightDelay = median(InFlightDelay, na.rm = TRUE),
+  ) |>
+  filter(Year < 2024)
+
+out |>
+  print() |>
+  system.time()
+```
+
+
+```{r}
+out |>
+  explain()
+```
+
+
+```{r}
+stats_show()
+```
+

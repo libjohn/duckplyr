@@ -1,0 +1,111 @@
+---
+title: "Playtime with taxi data"
+author: "John Little"
+format: html
+---
+
+```{r}
+library(conflicted)
+library(duckplyr)
+library(fs)
+library(nycflights13)
+
+conflict_prefer("filter", "dplyr", quiet = TRUE)
+```
+
+### data download and prep
+
+## taxi
+
+https://duckdb.org/2024/10/16/driving-csv-performance-benchmarking-duckdb-with-the-nyc-taxi-dataset.html
+
+> In 2022, the data provider has decided to distribute the dataset as a series of Parquet files instead of CSV files. Performance-wise, this is a wise choice, as Parquet files are much smaller than CSV files, and their native columnar format allows for fast execution directly on them. 
+
+```{r}
+#| label: pull-from-url-NOT
+
+year_tx <- 2020:2024
+month_tx <- rep(stringr::str_pad(1:3, width = 2, pad = "0"), 4)
+base_url_tx <- "https://d37ci6vzurychx.cloudfront.net/trip-data/" #yellow_tripdata_2024-02.parquet"
+record_type <- "yellow_tripdata_"
+files_tx <- paste0(record_type, year_tx, "-", month_tx, ".parquet")
+files_tx
+
+taxis_urls <- tibble(filename = files_tx, base_url = base_url_tx) |> 
+  arrange(filename) |> 
+  mutate(url = paste0(base_url, filename)) %>% 
+  mutate(destfile = paste0("data/taxis/", filename))
+
+
+taxis_urls
+```
+
+```{r}
+fs::dir_create("data/taxis")
+
+purrr::walk2(taxis_urls$url, taxis_urls$destfile, 
+             download.file, 
+             method = "libcurl",  
+             mode = "wb") 
+```
+
+
+
+```{r}
+#| label: get-filenames
+
+my_files <- fs::dir_ls("data/taxis", glob = "*.parquet")
+my_files %>% fs::file_info()
+
+fs::dir_info("data/taxis") %>% 
+  summarise(sum(size))
+```
+
+
+### Import Parquet files
+
+```{r}
+#| label: ingest-parquet-file
+
+taxis_duckdb <-  my_files %>% 
+  read_parquet_duckdb()
+```
+
+
+```{r}
+taxis_duckdb |> 
+  explain()
+```
+
+
+```{r}
+taxis_duckdb |> 
+  count() 
+```
+
+```{r}
+taxis_duckdb |> 
+  head() |> 
+  glimpse()
+```
+
+```{r}
+taxis_duckdb |> 
+  mutate(year = lubridate::year(tpep_dropoff_datetime)) |>
+  summarise(avg_fare = mean(fare_amount, na.rm = TRUE), 
+            avg_distance = mean(trip_distance, na.rm = TRUE),
+            .by = year) |>
+  mutate(avg_fare_pretty = scales::dollar(avg_fare),
+         .after = avg_fare) |> 
+  mutate(avgt_cost_per_mile = avg_fare / avg_distance) |> 
+  arrange(-avg_fare)
+```
+
+## file clean-up/delete
+
+```{r}
+fs::dir_delete("data/taxis")
+csv_datafiles <- fs::dir_ls("data", glob = "*.csv")
+# csv_datafiles
+fs::file_delete(csv_datafiles)
+```
