@@ -65,3 +65,5 @@ Part of the [RforLunch](https://Rfun.library.duke.edu/) workshop series, this wo
     -   Hands on with Taxi data
 
         -   02_taxi_data
+
+    -   See More R learning resources at [Rfun.library.duke.edu](https://rfun.library.duke.edu)
