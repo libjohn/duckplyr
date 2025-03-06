@@ -1,11 +1,12 @@
 ---
-title: "duckplyr"
-editor: source
+title: "duckplyr into - RforLunch"
+author: "John Little"
+format: html
 ---
 
 ## Load library packages
 
-{duckplyr} is designed to be a drop-in replacement for {dplyr}, using the same function names and interfaces, but with DuckDB as the backend for faster performance.  It's best to avoide loading {tidyverse} or {dplyr} packages directly; {duckplyr} will use optimized versions of its functions and fall back to the original {dplyr} functions when needed.
+{duckplyr} is designed to be a drop-in replacement for {dplyr}, using the same function names and interfaces, but with DuckDB as the backend for faster performance. It's best to avoide loading {tidyverse} or {dplyr} packages directly; {duckplyr} will use optimized versions of its functions and fall back to the original {dplyr} functions when needed.
 
 ```{r}
 library(duckplyr)
@@ -15,6 +16,7 @@ library(nycflights13)
 
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```
+
 ## Import data
 
 `duckplyr::flights_df()` calls a variant of `nycflights13::flights` that is compatible with duckplyr
@@ -56,7 +58,7 @@ flights_df() |>
 
 ## Load more data
 
-This time, let's import some parquet files directly from the internet.  First, let's set up a tibble of URLs.
+This time, let's import some parquet files directly from the internet. First, let's set up a tibble of URLs.
 
 ```{r}
 year <- 2022:2024
@@ -66,35 +68,34 @@ urls <- paste0(base_url, files)
 tibble(urls)
 ```
 
-DuckDB can take [extensions](https://duckdb.org/docs/stable/extensions/overview.html) to extend DuckDB functionality.  Below we allow the [reading/writing remote files via the HTTPS](https://duckdb.org/docs/stable/extensions/httpfs/overview) protocol.
+DuckDB can take [extensions](https://duckdb.org/docs/stable/extensions/overview.html) to extend DuckDB functionality. Below we allow the [reading/writing remote files via the HTTPS](https://duckdb.org/docs/stable/extensions/httpfs/overview) protocol.
 
 ```{r}
 db_exec("INSTALL httpfs")
 db_exec("LOAD httpfs")
 ```
 
-Now we can import parquet files remotely.  Parquet files are a columnar storage format that is more efficient than CSV and well-suited for big data applications and analysis.  These particular files are demo files stored at the DuckDB site; retrievable remotely via HTTPS.
+Now we can import parquet files remotely. Parquet files are a columnar storage format that is more efficient than CSV and well-suited for big data applications and analysis. These particular files are demo files stored at the DuckDB site; retrievable remotely via HTTPS.
 
 ```{r}
 flights <- read_parquet_duckdb(urls)
 ```
 
-DuckDB is a columnar database management system that can efficiently work with tabular data.
-When using DuckDB with R (particularly with the {duckplyr} package), what's happening is:
+DuckDB is a columnar database management system that can efficiently work with tabular data. When using DuckDB with R (particularly with the {duckplyr} package), what's happening is:
 
-- DuckDB operates as an in-process analytical database engine
-- Operations are translated into SQL and executed by the DuckDB engine
-- This happens transparently, so you can use familiar {dplyr} syntax
+-   DuckDB operates as an in-process analytical database engine
+-   Operations are translated into SQL and executed by the DuckDB engine
+-   This happens transparently, so you can use familiar {dplyr} syntax
 
 When you use {duckplyr}, your operations are performed using DuckDB's engine rather than R's memory, which can be dramatically faster for large datasets, while still maintaining the familiar {dplyr} interface.
 
-The result objects from DuckDB operations can be materialized as regular R data frames or tibbles when needed, but the intermediate operations happen within the DuckDB engine for efficiency.  This means, DuckDB objects are not traditional data frames, but allow for deferred computation until the compute is necessary.  Thge {duckplyr} data frame behaves as a regular data frame, but has key under-the-hood differences.  One difference is _lazy materialization_, (i.e. deferred computation) for optimized compute.  The other is **prudence** of showing large data which can result in memory problems.  Prudence has three levels (_lavish, stingy, and thrifty_) that we'll demonstrate later.
+The result objects from DuckDB operations can be materialized as regular R data frames or tibbles when needed, but the intermediate operations happen within the DuckDB engine for efficiency. This means, DuckDB objects are not traditional data frames, but allow for deferred computation until the compute is necessary. Thge {duckplyr} data frame behaves as a regular data frame, but has key under-the-hood differences. One difference is *lazy materialization*, (i.e. deferred computation) for optimized compute. The other is **prudence** of showing large data which can result in memory problems. Prudence has three levels (*lavish, stingy, and thrifty*) that we'll demonstrate later.
 
 ```{r}
 class(flights)
 ```
 
-Because data can be large, it's often useful to avoid displaying the full data.  Tactical use of the `head()` function can easily LIMIT the size of the data.  The opposite technique is to use the COLLECT function by converting the input into a tibble (i.e. materializing the lazy operation.)  Keep in mind that `collect()` can lead to memory problems if not use **prudently**.
+Because data can be large, it's often useful to avoid displaying the full data. Tactical use of the `head()` function can easily LIMIT the size of the data. The opposite technique is to use the COLLECT function by converting the input into a tibble (i.e. materializing the lazy operation.) Keep in mind that `collect()` can lead to memory problems if not use **prudently**.
 
 ```{r}
 flights |> 
@@ -135,13 +136,14 @@ class(flights)
 class(mean_arr_delay_ewr)
 ```
 
-The `explain()` function, does not give an exact row count, but it does give an idea of how the {duckplyr} object is formatted.  An alternative to determining size is to use the `count()` function.  (This may not work in the context of very big data.)
+The `explain()` function, does not give an exact row count, but it does give an idea of how the {duckplyr} object is formatted. An alternative to determining size is to use the `count()` function. (This may not work in the context of very big data.)
 
 ```{r}
 flights |> 
   count() |> 
   mutate(pretty_n = scales::comma(n))
 ```
+
 Another example and a `system.time()` calculation.
 
 ```{r}
@@ -160,14 +162,13 @@ out |>
   system.time()
 ```
 
-
 ```{r}
 out |>
   explain()
 ```
+
 How many of our function calls wer {duckplyr} and how many times did it fall back to {dplyr}?
 
 ```{r}
 stats_show()
 ```
-
