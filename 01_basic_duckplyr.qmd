@@ -50,6 +50,13 @@ class(out_df)
 ```{r}
 flights_df() |>
   summarize(
+    .by = c(origin, dest)) |> 
+  distinct(origin, dest) |> 
+  arrange(origin, dest) |> 
+  summarise(n(), .by = origin)
+
+flights_df() |>
+  summarize(
     .by = origin,
     dest = paste(sort(unique(dest)), collapse = " ")
   )

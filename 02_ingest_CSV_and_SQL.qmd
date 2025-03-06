@@ -12,7 +12,6 @@ An initial example will demonstrate that {duckdb) can invoke actual SQL commands
 library(conflicted)
 library(duckplyr)
 library(fs)
-library(nycflights13)
 
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```

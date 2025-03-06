@@ -24,7 +24,6 @@ Pedro Holanda [published a DuckDB blog post](https://duckdb.org/2024/10/16/drivi
 library(conflicted)
 library(duckplyr)
 library(fs)
-library(nycflights13)
 
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```
