@@ -4,6 +4,22 @@ author: "John Little"
 format: html
 ---
 
+## Purpose
+
+The purpose of this notebook is to give you access to a toy dataset where you can practice {duckplyr} queries and exploratory data analysis.
+
+**Goal: play with the data.**
+
+### Disclaimer
+
+While the data could be accessed through {duckplyr} via HTTPS – similar to the demonstration in `02_ingest_CSV_and_SQL.qmd`{=} – I found the HTTPS data transfer was unreliable and caused numerous hiccups, due to network lag. This problem could have been transitory, occurring during my notebook development. Rather than HTTPS transfer, downloading the data may be more reliable for a workshop setting. However, downloading \~ 0.6GB of data may be time-consuming and dependent on your network throughput. Since this workshop is on campus, and in-person, there will be no network lag. Therefore, bottlenecks will become your available local disk space on your Local File system, and your available RAM. In my testing, this script ran fine on a computer with 4, 16, or 64 GB of RAM. It was painfully slow, but functional, on an RStudio container that had 2 GB of RAM.
+
+## Taxi data
+
+Pedro Holanda [published a DuckDB blog post](https://duckdb.org/2024/10/16/driving-csv-performance-benchmarking-duckdb-with-the-nyc-taxi-dataset.html) about benchmarking DuckDB with NYC Taxi data. I've adapted Holanda's code to fit this {duckplyr} example. This notebook will download \~0.6 GB of selective taxi data and demonstrate use of basic {duckplyr} functions for data exploration.
+
+> In 2022, the provider of taxi data decided to distribute the dataset as a series of Parquet files instead of CSV files. Performance-wise, this is a wise choice, as Parquet files are much smaller than CSV files, and their native columnar format allows for fast execution directly on them.
+
 ```{r}
 library(conflicted)
 library(duckplyr)
@@ -13,13 +29,11 @@ library(nycflights13)
 conflict_prefer("filter", "dplyr", quiet = TRUE)
 ```
 
-### data download and prep
+## Data download and prep
 
-## taxi
+The data are described in greater detail at the [NYC trip and Limmosine Commision open data page](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
 
-https://duckdb.org/2024/10/16/driving-csv-performance-benchmarking-duckdb-with-the-nyc-taxi-dataset.html
-
-> In 2022, the data provider has decided to distribute the dataset as a series of Parquet files instead of CSV files. Performance-wise, this is a wise choice, as Parquet files are much smaller than CSV files, and their native columnar format allows for fast execution directly on them. 
+Based on the website above we want a vector of URLs to parquet files, and a vector of destination file paths for downloading to my local LFS.
 
 ```{r}
 #| label: pull-from-url-NOT
@@ -49,7 +63,7 @@ purrr::walk2(taxis_urls$url, taxis_urls$destfile,
              mode = "wb") 
 ```
 
-
+How much data did we just download?
 
 ```{r}
 #| label: get-filenames
@@ -61,8 +75,7 @@ fs::dir_info("data/taxis") %>%
   summarise(sum(size))
 ```
 
-
-### Import Parquet files
+## Import Parquet files
 
 ```{r}
 #| label: ingest-parquet-file
@@ -71,23 +84,27 @@ taxis_duckdb <-  my_files %>%
   read_parquet_duckdb()
 ```
 
-
 ```{r}
 taxis_duckdb |> 
   explain()
 ```
 
+How many rows of data?
 
 ```{r}
 taxis_duckdb |> 
   count() 
 ```
 
+Take a quick look at the top rows of the duckdb data frame
+
 ```{r}
 taxis_duckdb |> 
   head() |> 
   glimpse()
 ```
+
+A basic query
 
 ```{r}
 taxis_duckdb |> 
@@ -101,9 +118,20 @@ taxis_duckdb |>
   arrange(-avg_fare)
 ```
 
-## file clean-up/delete
+## Your Turn
+
+Add new code chunks.
+
+Come up with new and novel data explorations.
+
+## File clean-up/delete
+
+The following code chunk is set to **not run** (i.e. `eval: false`{=}). However, individual code chunks can be run, by clicking the green execute arrows. This means, *run-all,* will not run this code, but I can manually override. Doing so will clean-up, i.e. delete, all CSV files and all downloaded parquet files.
 
 ```{r}
+#| label: clean-up files
+#| eval: false
+
 fs::dir_delete("data/taxis")
 csv_datafiles <- fs::dir_ls("data", glob = "*.csv")
 # csv_datafiles
